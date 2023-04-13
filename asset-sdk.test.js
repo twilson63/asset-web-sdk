@@ -6,7 +6,7 @@ const sdk = SDK.init({ arweave })
 
 async function main() {
 
-  const result = await sdk.getAsset('hjPs2AzXxjx5-SCYPcjYiduFZqYRJAkVywaDktmLIdI')
+  const result = await sdk.getAsset('vCU8cXnxkkMupiACruf9ih2M4k_CWIEvGsozbY9jlzg')
   console.log('result', result)
 }
 
