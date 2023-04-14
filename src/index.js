@@ -15,7 +15,7 @@ import {
   identity,
   lensProp,
   over,
-  map
+  map,
 } from "ramda";
 import Stamps from "@permaweb/stampjs";
 
@@ -55,6 +55,12 @@ const AtomicAsset = z.object({
  */
 
 /**
+ * @callback CreateAsset
+ * @param {Asset} asset
+ * @returns {Promise<{ok: boolean, id: string}>}
+ */
+
+/**
  * @typedef {Object} AssetWebSdk
  * @property {GetAsset} getAsset
  */
@@ -68,13 +74,17 @@ export default {
     const stamps = Stamps.init({ warp: env.warp });
 
     return {
-      // createAsset: (asset) =>
-      //   of(asset)
-      //     .map(defaultGroupId)
-      //     .map(createAssetData)
-      //     .chain(publishAsset)
-      // //.chain(registerStamps)
-      // ,
+      /**
+       * @type {CreateAsset} createAsset
+       */
+      createAsset: (asset) =>
+        of(asset)
+          .chain(validate)
+          .map(defaultGroupId)
+          .map(createAssetData)
+          .chain(publishAsset)
+          //.chain(registerStamps)
+          .toPromise(),
       /**
        * @type {GetAsset} getAsset
        */
@@ -88,13 +98,22 @@ export default {
           .toPromise(),
     };
 
+    function validate(asset) {
+      const result = AtomicAsset.safeParse(asset);
+      return result.success ? Resolved(result.data) : Rejected(result.error);
+    }
     function publishAsset(asset) {
       if (!window.arweaveWallet) {
         return Rejected(Error("No Wallet found!"));
       }
-      const dispatch = fromPromise(window.arweaveWallet.dispatch);
-      const createTransaction = fromPromise(env.arweave.createTransaction);
-      const registerContract = ({ id }) => fromPromise(env.warp.register)(id, 'node2')
+      const dispatch = fromPromise(
+        window.arweaveWallet.dispatch.bind(window.arweaveWallet)
+      );
+      const createTransaction = fromPromise(
+        env.arweave.createTransaction.bind(env.arweave)
+      );
+      const registerContract = ({ id }) =>
+        fromPromise(env.warp.register.bind(env.warp))(id, "node2");
       const addTags = (tags) => (tx) => (
         map((t) => tx.addTag(t.name, t.value), tags), tx
       );
@@ -102,8 +121,8 @@ export default {
       return createTransaction({ data: asset.meta.data })
         .map(addTags(asset.meta.tags))
         .chain(dispatch)
-        .chain(({ id }) => createTransaction({ data: asset.target.data })
-          .map(
+        .chain(({ id }) =>
+          createTransaction({ data: asset.target.data }).map(
             addTags([
               ...asset.target.tags,
               { name: "META", value: id },
@@ -112,7 +131,6 @@ export default {
               { name: "Contract-Src", value: CONTRACT_SRC },
             ])
           )
-
         )
         .chain(dispatch)
         .chain(registerContract);
@@ -144,8 +162,8 @@ export default {
                 settings: [["isTradeable", true]],
               }),
             },
+            ...topicTags,
           ],
-          ...topicTags,
         },
         meta: {
           data: asset.meta,
